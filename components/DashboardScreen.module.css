@@ -1,0 +1,56 @@
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 0;
+}
+
+/* Bar chart */
+.chartWrap {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 120px;
+  margin-top: 16px;
+}
+
+.bar {
+  flex: 1;
+  border-radius: 4px 4px 0 0;
+  background: #DBEAFE;
+  cursor: pointer;
+  min-height: 4px;
+  transition: background 0.2s ease;
+}
+
+.bar:hover {
+  background: var(--brand);
+}
+
+.chartLabels {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chartLabel {
+  flex: 1;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* Operators grid */
+.operatorsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}

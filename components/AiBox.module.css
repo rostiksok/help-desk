@@ -1,0 +1,31 @@
+.box {
+  background: #F5F3FF;
+  border: 1px solid #DDD6FE;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.header {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5B21B6;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header i {
+  font-size: 16px;
+}
+
+.body {
+  font-size: 13px;
+  color: #4C1D95;
+  line-height: 1.6;
+}
+
+.body strong {
+  color: #4C1D95;
+}

@@ -1,0 +1,17 @@
+.card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-md);
+}
+
+.noPadding {
+  padding: 0;
+  overflow: hidden;
+}
+
+.accentTop {
+  border-top: 4px solid var(--brand);
+}

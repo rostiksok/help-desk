@@ -1,0 +1,17 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.new      { background: #DBEAFE; color: #1E40AF; }
+.progress { background: #FEF3C7; color: #92400E; }
+.done     { background: #D1FAE5; color: #065F46; }
+.high     { background: #FEE2E2; color: #B91C1C; }
+.medium   { background: #FEF3C7; color: #92400E; }
+.low      { background: #D1FAE5; color: #065F46; }
+.ai       { background: #EDE9FE; color: #5B21B6; font-size: 11px; }
