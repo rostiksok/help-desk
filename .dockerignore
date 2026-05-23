@@ -1,0 +1,16 @@
+node_modules/
+.next/
+*.tsbuildinfo
+.env
+.env.local
+.DS_Store
+.git/
+.claude/
+backend/venv/
+backend/helpdesk.db
+backend/uploads/
+backend/__pycache__/
+__tests__/
+jest.config.ts
+jest.setup.ts
+coverage/
