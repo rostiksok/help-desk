@@ -32,7 +32,9 @@ export interface TicketOut {
   category: string | null;
   status: string;
   priority: string;
+  operator_id: string | null;
   operator_name: string | null;
+  user_id: string | null;
   ai_analyzed: boolean;
   ai_category: string | null;
   ai_priority: string | null;
