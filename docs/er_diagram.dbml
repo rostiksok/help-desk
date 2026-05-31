@@ -1,0 +1,111 @@
+// HelpDesk AI — Database Schema
+// Docs: https://dbml.dbdiagram.io/docs
+// Render: https://dbdiagram.io → paste this file
+
+// ── Enums ────────────────────────────────────────────────────────────────────
+
+Enum user_role {
+  user       [note: 'Звичайний клієнт']
+  operator   [note: 'Оператор підтримки']
+  admin      [note: 'Адміністратор системи']
+}
+
+Enum request_type {
+  technical    [note: 'Технічна проблема']
+  payment      [note: 'Оплата / підписка']
+  consultation [note: 'Консультація']
+  complaint    [note: 'Скарга']
+}
+
+Enum ticket_status {
+  new      [note: 'Нове, не опрацьоване']
+  progress [note: 'В роботі у оператора']
+  done     [note: 'Вирішено']
+  closed   [note: 'Закрито без вирішення']
+}
+
+Enum priority_level {
+  high   [note: 'Критична проблема — оплата, доступ']
+  medium [note: 'Технічний баг, часткова проблема']
+  low    [note: 'Консультація, загальне питання']
+}
+
+// ── Tables ───────────────────────────────────────────────────────────────────
+
+Table users [note: 'Облікові записи всіх ролей системи'] {
+  id            varchar   [primary key, note: 'UUID, генерується автоматично']
+  email         varchar   [unique, not null, note: 'Email-адреса (індексований)']
+  name          varchar   [not null, note: 'Повне ім\'я']
+  password_hash varchar   [not null, note: 'bcrypt-хеш пароля (не passlib)']
+  role          user_role [not null, default: 'user', note: 'Роль у системі']
+  created_at    timestamp [not null, note: 'Дата реєстрації UTC']
+  is_active     boolean   [not null, default: true, note: 'Активність облікового запису']
+}
+
+Table tickets [note: 'Звернення користувачів. id у форматі TK-XXXX'] {
+  id              varchar        [primary key, note: 'TK-1041, TK-1042… (послідовний лічильник)']
+  title           varchar        [not null, note: 'Короткий заголовок звернення']
+  description     text           [not null, note: 'Детальний опис проблеми']
+  request_type    request_type   [not null, default: 'technical']
+  category        varchar        [note: 'Ручна категорія оператора (nullable)']
+  status          ticket_status  [not null, default: 'new']
+  priority        priority_level [not null, default: 'medium']
+  user_id         varchar        [ref: > users.id, note: 'Автор (nullable — анонімне звернення)']
+  operator_id     varchar        [ref: > users.id, note: 'Призначений оператор (nullable)']
+  ai_category     varchar        [note: 'Категорія від AI (null до завершення аналізу)']
+  ai_priority     varchar        [note: 'Пріоритет від AI: high | medium | low']
+  ai_summary      text           [note: 'Стислий опис проблеми від AI (1–2 речення)']
+  ai_recommendation text         [note: 'Рекомендована дія для оператора від AI']
+  ai_analyzed     boolean        [not null, default: false, note: 'Прапор завершення AI-аналізу']
+  created_at      timestamp      [not null]
+  updated_at      timestamp      [not null, note: 'Оновлюється автоматично при змінах']
+}
+
+Table replies [note: 'Відповіді у тікеті (і оператора, і клієнта)'] {
+  id          varchar   [primary key, note: 'UUID']
+  ticket_id   varchar   [not null, ref: > tickets.id, note: 'CASCADE DELETE']
+  author_id   varchar   [ref: > users.id, note: 'Nullable — анонімна відповідь']
+  content     text      [not null, note: 'Текст повідомлення']
+  is_operator boolean   [not null, default: false, note: 'true = відповідь оператора']
+  created_at  timestamp [not null]
+}
+
+Table attachments [note: 'Файли-вкладення до тікетів'] {
+  id           varchar   [primary key, note: 'UUID']
+  ticket_id    varchar   [not null, ref: > tickets.id, note: 'CASCADE DELETE']
+  filename     varchar   [not null, note: 'Оригінальна назва файлу']
+  content_type varchar   [not null, note: 'MIME-тип: image/png, application/pdf тощо']
+  size         integer   [not null, note: 'Розмір файлу в байтах']
+  path         varchar   [not null, note: 'Шлях на диску: uploads/UUID_filename']
+  created_at   timestamp [not null]
+}
+
+// ── References ───────────────────────────────────────────────────────────────
+
+Ref ticket_author:   tickets.user_id     > users.id   // many-to-one
+Ref ticket_operator: tickets.operator_id > users.id   // many-to-one
+Ref reply_author:    replies.author_id   > users.id   // many-to-one
+Ref reply_ticket:    replies.ticket_id   > tickets.id // many-to-one
+Ref attach_ticket:   attachments.ticket_id > tickets.id // many-to-one
+
+// ── Demo Records (seed.py) ────────────────────────────────────────────────────
+
+Records users(id, email, name, role, is_active) {
+  'u-admin', 'admin@helpdesk.ua',      'Адміністратор',      'admin',    true
+  'u-op1',   'zhygailo@helpdesk.ua',   'Жигайло В.М.',       'operator', true
+  'u-op2',   'moroz@helpdesk.ua',      'Мороз О.С.',         'operator', true
+  'u-op3',   'demchenko@helpdesk.ua',  'Демченко К.І.',      'operator', true
+  'u-user1', 'user@example.com',       'Тестовий Користувач','user',     true
+}
+
+Records tickets(id, title, status, priority, request_type, ai_analyzed, operator_id) {
+  'TK-1041', 'Не можу увійти в акаунт після зміни пароля', 'new',      'high',   'technical',    true,  'u-op1'
+  'TK-1040', 'Оплата пройшла, підписка не активована',     'progress', 'high',   'payment',      true,  'u-op2'
+  'TK-1039', 'Як завантажити архів моїх даних?',           'new',      'low',    'consultation', true,  null
+  'TK-1038', 'Помилка 500 при завантаженні файлу',         'progress', 'medium', 'technical',    true,  'u-op3'
+  'TK-1037', 'Запит на повернення коштів за квітень',      'done',     'medium', 'payment',      true,  'u-op1'
+}
+
+Records replies(id, ticket_id, author_id, is_operator) {
+  'r-001', 'TK-1040', 'u-op2', true
+}

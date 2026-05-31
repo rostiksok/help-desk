@@ -9,14 +9,16 @@ import SubmitScreen from './SubmitScreen';
 import OperatorScreen from './OperatorScreen';
 import DashboardScreen from './DashboardScreen';
 import MyTicketsScreen from './MyTicketsScreen';
+import ManageOperatorsScreen from './ManageOperatorsScreen';
 import LoginScreen from './LoginScreen';
 import styles from './HelpDeskApp.module.css';
 
 const SCREEN_TITLES: Record<Screen, string> = {
-  submit:      'Нове звернення',
-  operator:    'Кабінет оператора',
-  dashboard:   'Аналітичний дашборд',
-  'my-tickets': 'Мої звернення',
+  submit:             'Нове звернення',
+  operator:           'Кабінет оператора',
+  dashboard:          'Аналітичний дашборд',
+  'my-tickets':       'Мої звернення',
+  'manage-operators': 'Управління операторами',
 };
 
 const DEFAULT_SCREEN: Record<string, Screen> = {
@@ -56,10 +58,11 @@ export default function HelpDeskApp() {
       <div className={styles.main}>
         <Topbar title={SCREEN_TITLES[activeScreen]} />
         <main className={styles.content} key={activeScreen}>
-          {activeScreen === 'submit'      && <SubmitScreen />}
-          {activeScreen === 'operator'    && <OperatorScreen />}
-          {activeScreen === 'dashboard'   && <DashboardScreen />}
-          {activeScreen === 'my-tickets'  && <MyTicketsScreen />}
+          {activeScreen === 'submit'             && <SubmitScreen />}
+          {activeScreen === 'operator'           && <OperatorScreen />}
+          {activeScreen === 'dashboard'          && <DashboardScreen />}
+          {activeScreen === 'my-tickets'         && <MyTicketsScreen />}
+          {activeScreen === 'manage-operators'   && <ManageOperatorsScreen />}
         </main>
       </div>
     </div>

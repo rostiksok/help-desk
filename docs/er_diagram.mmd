@@ -1,0 +1,63 @@
+erDiagram
+
+    %% ══════════════════════════════════════════════════════
+    %% СУТНОСТІ
+    %% ══════════════════════════════════════════════════════
+
+    users {
+        string  id           PK  "UUID — унікальний ідентифікатор"
+        string  email        UK  "Email (унікальний, індексований)"
+        string  name             "Повне ім'я користувача"
+        string  password_hash    "bcrypt-хеш пароля"
+        string  role             "ENUM: user | operator | admin"
+        datetime created_at      "Дата реєстрації (UTC)"
+        boolean is_active        "Активність облікового запису"
+    }
+
+    tickets {
+        string  id            PK  "Формат TK-XXXX (послідовний)"
+        string  title             "Короткий заголовок звернення"
+        text    description       "Детальний опис проблеми"
+        string  request_type      "ENUM: technical | payment | consultation | complaint"
+        string  category          "Ручна категорія (nullable)"
+        string  status            "ENUM: new | progress | done | closed"
+        string  priority          "ENUM: high | medium | low"
+        string  user_id       FK  "Автор звернення (nullable — анонімний)"
+        string  operator_id   FK  "Відповідальний оператор (nullable)"
+        string  ai_category       "Категорія від AI (nullable до аналізу)"
+        string  ai_priority       "Пріоритет від AI: high | medium | low"
+        text    ai_summary        "Стислий опис від AI (1–2 речення)"
+        text    ai_recommendation "Рекомендація оператору від AI"
+        boolean ai_analyzed       "Прапор завершення AI-аналізу (default: false)"
+        datetime created_at       "Дата створення (UTC)"
+        datetime updated_at       "Дата останнього оновлення (UTC)"
+    }
+
+    replies {
+        string  id          PK  "UUID"
+        string  ticket_id   FK  "Прив'язка до тікета (CASCADE DELETE)"
+        string  author_id   FK  "Автор відповіді (nullable)"
+        text    content         "Текст відповіді"
+        boolean is_operator     "true — відповідь оператора, false — клієнта"
+        datetime created_at     "Дата відповіді (UTC)"
+    }
+
+    attachments {
+        string  id           PK  "UUID"
+        string  ticket_id    FK  "Прив'язка до тікета (CASCADE DELETE)"
+        string  filename         "Оригінальна назва файлу"
+        string  content_type     "MIME-тип (напр. image/png)"
+        integer size             "Розмір файлу в байтах"
+        string  path             "Шлях на диску: uploads/UUID_filename"
+        datetime created_at      "Дата завантаження (UTC)"
+    }
+
+    %% ══════════════════════════════════════════════════════
+    %% ЗВ'ЯЗКИ
+    %% ══════════════════════════════════════════════════════
+
+    users      ||--o{ tickets     : "подає (user_id)"
+    users      ||--o{ tickets     : "веде (operator_id)"
+    users      ||--o{ replies     : "пише (author_id)"
+    tickets    ||--o{ replies     : "містить"
+    tickets    ||--o{ attachments : "має"

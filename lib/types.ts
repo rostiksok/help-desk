@@ -1,4 +1,4 @@
-export type Screen = 'submit' | 'operator' | 'dashboard' | 'my-tickets';
+export type Screen = 'submit' | 'operator' | 'dashboard' | 'my-tickets' | 'manage-operators';
 
 export type Status = 'new' | 'progress' | 'done' | 'closed';
 export type Priority = 'high' | 'medium' | 'low';

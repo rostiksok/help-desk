@@ -127,7 +127,11 @@ export const apiReply = (id: string, content: string) =>
 export const apiAssignTicket = (id: string, operator_id: string) =>
   request<TicketOut>(`/api/tickets/${id}/assign`, { method: 'PATCH', body: JSON.stringify({ operator_id }) });
 
-export const apiListOperators = () => request<{ id: string; name: string; initials: string; active_tickets: number }[]>('/api/operators');
+export const apiListOperators = () =>
+  request<{ id: string; name: string; initials: string; active_tickets: number; avatar_bg?: string; avatar_color?: string }[]>('/api/operators');
+
+export const apiCreateOperator = (body: { email: string; name: string; password: string }) =>
+  request<UserOut>('/api/operators', { method: 'POST', body: JSON.stringify({ ...body, role: 'operator' }) });
 
 // My tickets (for regular users)
 export interface TicketListPageWithCounts extends TicketListPage {

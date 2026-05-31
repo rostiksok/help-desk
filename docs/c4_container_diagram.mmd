@@ -1,0 +1,46 @@
+C4Container
+    title Архітектурна діаграма C4 Level 2 — HelpDesk AI
+
+    %% ── Актори ───────────────────────────────────────────────────
+    Person(user,     "Користувач",      "Створює звернення,\nстежить за статусом відповіді")
+    Person(operator, "Оператор",        "Обробляє тікети, призначає пріоритети,\nвідповідає клієнтам")
+    Person(admin,    "Адміністратор",   "Керує обліковими записами операторів,\nпереглядає аналітику")
+
+    %% ── Межа системи ─────────────────────────────────────────────
+    System_Boundary(helpdesk, "HelpDesk AI") {
+
+        Container(web, "Web Application", "Next.js 15 · React 19 · TypeScript",
+            "SPA з App Router. Екрани: нове звернення, мої звернення, кабінет оператора, дашборд. JWT-токен зберігається у localStorage.")
+
+        Container(api, "API Server", "Python 3.13 · FastAPI · Uvicorn",
+            "REST API. Роутери: /api/auth, /api/tickets, /api/dashboard, /api/operators. JWT-автентифікація, фонові AI-задачі через BackgroundTasks.")
+
+        Container(ai_svc, "AI Service", "Python · Anthropic SDK · asyncio",
+            "Модуль ai_service.py. Ступінь 1: запит до Claude Haiku API. Ступінь 2: keyword-fallback. Повертає category, priority, summary, recommendation.")
+
+        ContainerDb(db, "Реляційна БД", "SQLite 3 · SQLAlchemy 2.0",
+            "Таблиці: users, tickets, replies, attachments. Поля AI-аналізу: ai_category, ai_priority, ai_summary, ai_recommendation, ai_analyzed.")
+
+        Container(storage, "Файлове сховище", "Local Filesystem · uploads/",
+            "Бінарні файли-вкладення тікетів. Унікальне ім'я: UUID + оригінальна назва. Роздається через /uploads/{filename}.")
+    }
+
+    %% ── Зовнішня система ─────────────────────────────────────────
+    System_Ext(claude, "Anthropic Claude API",
+        "LLM-модель claude-haiku-4-5-20251001. Приймає system prompt + текст тікета, повертає JSON з category, priority, summary, recommendation.")
+
+    %% ── Зв'язки: актори → фронтенд ──────────────────────────────
+    Rel(user,     web, "Відкриває у браузері",  "HTTPS")
+    Rel(operator, web, "Відкриває у браузері",  "HTTPS")
+    Rel(admin,    web, "Відкриває у браузері",  "HTTPS")
+
+    %% ── Зв'язки: фронтенд → бекенд ──────────────────────────────
+    Rel(web, api, "REST-запити (Bearer JWT)", "HTTP · JSON · port 8000")
+
+    %% ── Зв'язки: бекенд → підсистеми ────────────────────────────
+    Rel(api, db,      "Читає та записує дані",         "SQL · SQLAlchemy ORM")
+    Rel(api, storage, "Зберігає та роздає вкладення",  "File I/O · multipart/form-data")
+    Rel(api, ai_svc,  "Запускає фоновий аналіз",       "BackgroundTasks · async")
+
+    %% ── Зв'язки: AI сервіс → зовнішній Claude ───────────────────
+    Rel(ai_svc, claude, "AI-класифікація тікета", "HTTPS · JSON · API Key")

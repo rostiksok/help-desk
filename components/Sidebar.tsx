@@ -12,10 +12,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'submit',     icon: 'ti-circle-plus', label: 'Нове звернення', roles: ['user', 'operator', 'admin'] },
-  { id: 'my-tickets', icon: 'ti-files',       label: 'Мої звернення',  roles: ['user'] },
-  { id: 'operator',   icon: 'ti-list-check',  label: 'Кабінет оператора', roles: ['operator', 'admin'] },
-  { id: 'dashboard',  icon: 'ti-chart-bar',   label: 'Дашборд',        roles: ['operator', 'admin'] },
+  { id: 'submit',            icon: 'ti-circle-plus', label: 'Нове звернення',    roles: ['user', 'operator', 'admin'] },
+  { id: 'my-tickets',        icon: 'ti-files',       label: 'Мої звернення',     roles: ['user'] },
+  { id: 'operator',          icon: 'ti-list-check',  label: 'Кабінет оператора', roles: ['operator', 'admin'] },
+  { id: 'dashboard',         icon: 'ti-chart-bar',   label: 'Дашборд',           roles: ['operator', 'admin'] },
+  { id: 'manage-operators',  icon: 'ti-users-plus',  label: 'Оператори',         roles: ['admin'] },
 ];
 
 interface Props {

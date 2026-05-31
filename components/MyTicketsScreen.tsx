@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import Badge from './Badge';
 import Card from './Card';
-import { apiMyTickets } from '@/lib/api';
-import type { TicketListItem } from '@/lib/api';
+import { apiMyTickets, apiGetTicket, apiReply } from '@/lib/api';
+import type { TicketListItem, TicketOut } from '@/lib/api';
 import type { Status, Priority } from '@/lib/types';
 import styles from './MyTicketsScreen.module.css';
 
@@ -37,8 +37,13 @@ export default function MyTicketsScreen() {
   const [pages, setPages] = useState(1);
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  
+
+  const [detailTicket, setDetailTicket] = useState<TicketOut | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [sending, setSending] = useState(false);
+
   const tableRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
 
   const fetchTickets = async (p: number) => {
     setLoading(true);
@@ -49,20 +54,40 @@ export default function MyTicketsScreen() {
       setPage(data.page);
       setPages(data.pages);
       setStatusCounts(data.status_counts || {});
-    } catch (err) {
+    } catch {
       setTickets([]);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchTickets(1);
-  }, []);
+  useEffect(() => { fetchTickets(1); }, []);
 
   const goToPage = (p: number) => {
     fetchTickets(p);
     tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleRowClick = async (ticketId: string) => {
+    if (detailTicket?.id === ticketId) { setDetailTicket(null); return; }
+    try {
+      const full = await apiGetTicket(ticketId);
+      setDetailTicket(full);
+      setReplyText('');
+      setTimeout(() => detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+    } catch { /* ignore */ }
+  };
+
+  const handleSendReply = async () => {
+    if (!detailTicket || !replyText.trim()) return;
+    setSending(true);
+    try {
+      await apiReply(detailTicket.id, replyText);
+      const updated = await apiGetTicket(detailTicket.id);
+      setDetailTicket(updated);
+      setReplyText('');
+    } catch { /* ignore */ }
+    finally { setSending(false); }
   };
 
   if (loading && tickets.length === 0) {
@@ -88,19 +113,18 @@ export default function MyTicketsScreen() {
     );
   }
 
+  const isResolved = (status: string) => status === 'done' || status === 'closed';
+
   return (
     <>
       <div className={styles.summary}>
-        {(['new', 'progress', 'done'] as const).map((s) => {
-          const count = statusCounts[s] || 0;
-          return (
-            <div key={s} className={styles.summaryItem}>
-              <span className={styles.summaryDot} style={{ background: STATUS_COLORS[s] }} />
-              <span className={styles.summaryLabel}>{STATUS_LABELS[s]}</span>
-              <span className={styles.summaryCount}>{count}</span>
-            </div>
-          );
-        })}
+        {(['new', 'progress', 'done'] as const).map((s) => (
+          <div key={s} className={styles.summaryItem}>
+            <span className={styles.summaryDot} style={{ background: STATUS_COLORS[s] }} />
+            <span className={styles.summaryLabel}>{STATUS_LABELS[s]}</span>
+            <span className={styles.summaryCount}>{statusCounts[s] || 0}</span>
+          </div>
+        ))}
       </div>
 
       <Card noPadding>
@@ -119,7 +143,15 @@ export default function MyTicketsScreen() {
             </div>
           )}
           {!loading && tickets.map((t) => (
-            <div key={t.id} className={styles.row}>
+            <div
+              key={t.id}
+              className={`${styles.row} ${styles.rowClickable} ${detailTicket?.id === t.id ? styles.rowActive : ''}`}
+              onClick={() => handleRowClick(t.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && handleRowClick(t.id)}
+              aria-expanded={detailTicket?.id === t.id}
+            >
               <span className={styles.ticketId}>{t.id}</span>
               <span className={styles.ticketTitle}>{t.title}</span>
               <span className={styles.category}>{t.category ?? '—'}</span>
@@ -132,22 +164,13 @@ export default function MyTicketsScreen() {
           ))}
         </div>
 
-        {/* Pagination */}
         {!loading && pages > 1 && (
-          <div className={styles.pagination} style={{ padding: '16px 24px', borderTop: '1px solid #F3F4F6', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, color: '#6B7280' }}>
+          <div className={styles.pagination}>
+            <span className={styles.paginationInfo}>
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} з {total}
             </span>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <button
-                onClick={() => goToPage(page - 1)}
-                disabled={page === 1}
-                style={{
-                  width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderRadius: 6, border: '1px solid #E5E7EB', background: '#FFF',
-                  cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.5 : 1
-                }}
-              >
+            <div className={styles.paginationBtns}>
+              <button className={styles.pageBtn} onClick={() => goToPage(page - 1)} disabled={page === 1}>
                 <i className="ti ti-chevron-left" />
               </button>
               {Array.from({ length: pages }, (_, i) => i + 1)
@@ -159,39 +182,132 @@ export default function MyTicketsScreen() {
                 }, [])
                 .map((p, i) =>
                   p === '...' ? (
-                    <span key={`ellipsis-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, color: '#6B7280' }}>…</span>
+                    <span key={`e-${i}`} className={styles.pageEllipsis}>…</span>
                   ) : (
                     <button
                       key={p}
+                      className={`${styles.pageBtn} ${p === page ? styles.pageBtnActive : ''}`}
                       onClick={() => goToPage(p as number)}
-                      style={{
-                        width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        borderRadius: 6, border: '1px solid #E5E7EB',
-                        background: p === page ? '#EEF2FF' : '#FFF',
-                        color: p === page ? '#4F46E5' : '#374151',
-                        fontWeight: p === page ? 600 : 400,
-                        cursor: 'pointer'
-                      }}
                     >
                       {p}
                     </button>
                   )
                 )}
-              <button
-                onClick={() => goToPage(page + 1)}
-                disabled={page === pages}
-                style={{
-                  width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  borderRadius: 6, border: '1px solid #E5E7EB', background: '#FFF',
-                  cursor: page === pages ? 'not-allowed' : 'pointer', opacity: page === pages ? 0.5 : 1
-                }}
-              >
+              <button className={styles.pageBtn} onClick={() => goToPage(page + 1)} disabled={page === pages}>
                 <i className="ti ti-chevron-right" />
               </button>
             </div>
           </div>
         )}
       </Card>
+
+      {detailTicket && (
+        <div ref={detailRef}>
+          <Card accentTop>
+            {/* Header */}
+            <div className={styles.detailHeader}>
+              <div>
+                <div className={styles.detailMeta}>
+                  <span>{detailTicket.id}</span>
+                  <span>&bull;</span>
+                  <span>{detailTicket.category ?? detailTicket.request_type}</span>
+                  <span>&bull;</span>
+                  <span>{new Date(detailTicket.created_at).toLocaleString('uk-UA')}</span>
+                </div>
+                <h2 className={styles.detailTitle}>{detailTicket.title}</h2>
+              </div>
+              <div className={styles.detailBadges}>
+                <Badge variant={detailTicket.priority as Priority}>
+                  {PRIORITY_LABELS[detailTicket.priority] ?? detailTicket.priority}
+                </Badge>
+                <Badge variant={detailTicket.status as Status}>
+                  {STATUS_LABELS[detailTicket.status] ?? detailTicket.status}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Operator info */}
+            {detailTicket.operator_name && (
+              <div className={styles.operatorInfo}>
+                <i className="ti ti-user-check" />
+                Відповідальний оператор: <strong>{detailTicket.operator_name}</strong>
+              </div>
+            )}
+
+            {/* Description */}
+            <div className="formGroup">
+              <label className="formLabel">Опис звернення</label>
+              <p className={styles.description}>{detailTicket.description}</p>
+            </div>
+
+            {/* Attachments */}
+            {detailTicket.attachments.length > 0 && (
+              <div className="formGroup">
+                <label className="formLabel">
+                  <i className="ti ti-paperclip" style={{ marginRight: 4 }} />
+                  Вкладення ({detailTicket.attachments.length})
+                </label>
+                <div className={styles.attachments}>
+                  {detailTicket.attachments.map((a) => {
+                    const fileUrl = `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'}${a.url}`;
+                    return (
+                      <a key={a.id} href={fileUrl} target="_blank" rel="noopener noreferrer" className={styles.attachmentItem} title={a.filename}>
+                        <span className={styles.attachmentIcon}>
+                          <i className={`ti ${a.content_type.startsWith('image/') ? 'ti-photo' : a.content_type === 'application/pdf' ? 'ti-file-type-pdf' : 'ti-file'}`} />
+                        </span>
+                        <span className={styles.attachmentName}>{a.filename}</span>
+                        <i className="ti ti-external-link" style={{ fontSize: 12, color: '#9CA3AF', marginLeft: 'auto' }} />
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Replies thread */}
+            {detailTicket.replies.length > 0 && (
+              <div className="formGroup">
+                <label className="formLabel">Листування</label>
+                <div className={styles.thread}>
+                  {detailTicket.replies.map((r) => (
+                    <div key={r.id} className={`${styles.replyItem} ${r.is_operator ? styles.replyOperator : styles.replyUser}`}>
+                      <p className={styles.replyMeta}>
+                        <i className={`ti ${r.is_operator ? 'ti-headset' : 'ti-user'}`} />
+                        {r.is_operator ? (r.author_name ?? 'Оператор') : 'Ви'}
+                        <span> · {new Date(r.created_at).toLocaleString('uk-UA')}</span>
+                      </p>
+                      <p className={styles.replyContent}>{r.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Reply form — hidden for resolved tickets */}
+            {!isResolved(detailTicket.status) && (
+              <div className="formGroup">
+                <label className="formLabel">Додати повідомлення</label>
+                <textarea
+                  className="formTextarea"
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="Уточніть деталі або задайте питання оператору..."
+                />
+              </div>
+            )}
+
+            <div className={styles.detailActions}>
+              <button className="btnSecondary" onClick={() => setDetailTicket(null)}>Закрити</button>
+              {!isResolved(detailTicket.status) && (
+                <button className="btnPrimary" onClick={handleSendReply} disabled={sending || !replyText.trim()}>
+                  <i className={`ti ${sending ? 'ti-loader' : 'ti-send'}`} aria-hidden="true" />
+                  {sending ? 'Надсилання...' : 'Надіслати'}
+                </button>
+              )}
+            </div>
+          </Card>
+        </div>
+      )}
     </>
   );
 }

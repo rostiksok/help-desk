@@ -1,0 +1,62 @@
+sequenceDiagram
+    autonumber
+
+    actor User     as Користувач
+    actor Operator as Оператор
+    participant API    as API Server
+    participant DB     as SQLite БД
+    participant AI     as AI Service
+    participant Claude as Claude API
+
+    rect rgb(235, 245, 255)
+        Note over User, DB: Сценарій 1 — Автентифікація
+
+        User  ->> API : POST /api/auth/login {email, password}
+        API   ->> DB  : SELECT user WHERE email = ?
+        DB  -->> API  : User record
+        API   ->> API : bcrypt.checkpw → jwt.encode(sub, exp)
+        alt невірні дані
+            API -->> User : 401 Unauthorized
+        else успіх
+            API -->> User : 200 {access_token}
+        end
+    end
+
+    rect rgb(235, 255, 240)
+        Note over User, Claude: Сценарій 2 — Створення звернення та AI-аналіз
+
+        User ->> API : POST /api/tickets {title, description, request_type}
+        API  ->> DB  : INSERT ticket (status=new, ai_analyzed=false)
+        DB -->> API  : Ticket TK-XXXX
+        API -->> User : 201 TicketOut
+
+        API  -) AI   : BackgroundTask: _run_ai_analysis(ticket_id)
+        alt ANTHROPIC_API_KEY задано
+            AI  ->> Claude : POST /v1/messages {system_prompt, user_message}
+            Claude -->> AI : {category, priority, summary, recommendation}
+        else API Key відсутній / помилка
+            AI  ->> AI     : _fallback_analysis() — keyword matching
+        end
+        AI  ->> DB : UPDATE ticket SET ai_fields, ai_analyzed=true
+    end
+
+    rect rgb(255, 248, 235)
+        Note over Operator, DB: Сценарій 3 — Обробка звернення оператором
+
+        Operator ->> API : GET /api/tickets?status=new
+        API      ->> DB  : SELECT tickets ORDER BY created_at DESC
+        DB     -->> API  : TicketListPage
+        API    -->> Operator : Список тікетів з AI-аналізом
+
+        Operator ->> API : PATCH /api/tickets/{id}/assign {operator_id}
+        API      ->> DB  : UPDATE SET operator_id, status=progress
+        API    -->> Operator : TicketOut (status=progress)
+
+        Operator ->> API : POST /api/tickets/{id}/reply {content}
+        API      ->> DB  : INSERT reply (is_operator=true)
+        API    -->> Operator : ReplyOut
+
+        Operator ->> API : PATCH /api/tickets/{id}/status {status: done}
+        API      ->> DB  : UPDATE SET status=done
+        API    -->> Operator : TicketOut (status=done)
+    end

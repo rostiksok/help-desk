@@ -1,0 +1,112 @@
+sequenceDiagram
+    autonumber
+
+    actor User     as Користувач
+    actor Operator as Оператор
+    participant Web    as Web App&#10;(Next.js 15)
+    participant API    as API Server&#10;(FastAPI)
+    participant DB     as SQLite БД
+    participant AI     as AI Service
+    participant Claude as Anthropic&#10;Claude API
+
+    %% ══════════════════════════════════════════════════════
+    %% СЦЕНАРІЙ 1 — Автентифікація
+    %% ══════════════════════════════════════════════════════
+    rect rgb(235, 245, 255)
+        Note over User, DB: Сценарій 1 — Автентифікація (POST /api/auth/login)
+
+        User  ->> Web : Ввести email та пароль
+        Web   ->> API : POST /api/auth/login {email, password}
+        API   ->> DB  : SELECT * FROM users WHERE email = ?
+        DB  -->> API  : Запис користувача (або NULL)
+
+        alt Користувача не знайдено
+            API -->> Web : 401 Unauthorized
+            Web -->> User : Повідомлення про помилку
+        else Користувач знайдено
+            API ->> API : bcrypt.checkpw(password, password_hash)
+
+            alt Пароль невірний
+                API -->> Web : 401 Unauthorized
+                Web -->> User : Повідомлення про помилку
+            else Пароль вірний
+                API ->> API  : jwt.encode({sub: user_id, exp: +N хвилин})
+                API -->> Web : 200 {access_token, token_type: bearer}
+                Web ->> Web  : localStorage.setItem("token", access_token)
+                Web ->> API  : GET /api/auth/me  [Bearer JWT]
+                API ->> API  : jwt.decode → user_id
+                API ->> DB   : SELECT * FROM users WHERE id = user_id
+                DB -->> API  : UserOut
+                API -->> Web : {id, email, name, role}
+                Web -->> User : Перехід до кабінету (роль-залежний екран)
+            end
+        end
+    end
+
+    %% ══════════════════════════════════════════════════════
+    %% СЦЕНАРІЙ 2 — Створення звернення + AI-аналіз
+    %% ══════════════════════════════════════════════════════
+    rect rgb(235, 255, 240)
+        Note over User, Claude: Сценарій 2 — Створення звернення та фоновий AI-аналіз
+
+        User ->> Web : Заповнити форму звернення
+        Web  ->> API : POST /api/tickets [Bearer JWT]&#10;{title, description, request_type, priority}
+        API  ->> API : get_optional_user() → jwt.decode
+
+        API  ->> DB  : INSERT INTO tickets&#10;(id=TK-XXXX, status=new, priority=medium,&#10; ai_analyzed=false)
+        DB -->> API  : Ticket record
+
+        API -->> Web : 201 TicketOut (ai_analyzed = false)
+        Web -->> User : Звернення прийнято, очікуйте аналізу
+
+        Note over API, Claude: Фоновий процес — BackgroundTasks (async)
+
+        API  -) AI   : _run_ai_analysis(ticket_id, title, description, request_type)
+
+        alt ANTHROPIC_API_KEY задано
+            AI  ->> Claude : POST /v1/messages&#10;{model, system_prompt, user_message}&#10;max_tokens: 512
+            Claude -->> AI : 200 JSON {category, priority,&#10;summary, recommendation}
+            AI  ->> AI     : json.loads(response.content[0].text)
+        else API Key відсутній або виняток
+            AI  ->> AI     : _fallback_analysis()&#10;keyword matching по 5 правилах
+        end
+
+        AI  ->> DB : UPDATE tickets SET&#10;ai_category, ai_priority, ai_summary,&#10;ai_recommendation, ai_analyzed = true&#10;WHERE id = ticket_id
+
+        Note over AI, DB: Якщо priority тікета = 'medium' → оновити до ai_priority
+    end
+
+    %% ══════════════════════════════════════════════════════
+    %% СЦЕНАРІЙ 3 — Обробка звернення оператором
+    %% ══════════════════════════════════════════════════════
+    rect rgb(255, 248, 235)
+        Note over Operator, DB: Сценарій 3 — Обробка звернення оператором
+
+        Operator ->> Web : Відкрити кабінет оператора
+        Web  ->> API : GET /api/tickets?status=new [Bearer JWT]
+        API  ->> API : require_operator() → перевірка ролі
+        API  ->> DB  : SELECT tickets ORDER BY created_at DESC
+        DB -->> API  : TicketListPage (з AI-полями)
+        API -->> Web : Список тікетів
+        Web -->> Operator : Таблиця звернень з AI-категоріями
+
+        Operator ->> Web : Призначити себе на тікет
+        Web  ->> API : PATCH /api/tickets/{id}/assign&#10;{operator_id}
+        API  ->> DB  : UPDATE tickets SET&#10;operator_id = ?, status = progress
+        DB -->> API  : Updated ticket
+        API -->> Web : TicketOut (status = progress)
+
+        Operator ->> Web : Написати відповідь клієнту
+        Web  ->> API : POST /api/tickets/{id}/reply&#10;{content}
+        API  ->> DB  : INSERT INTO replies&#10;(is_operator = true)
+        DB -->> API  : ReplyOut
+        API -->> Web : ReplyOut
+        Web -->> Operator : Відповідь додана до тікета
+
+        Operator ->> Web : Закрити звернення
+        Web  ->> API : PATCH /api/tickets/{id}/status&#10;{status: done}
+        API  ->> DB  : UPDATE tickets SET status = done
+        DB -->> API  : Updated ticket
+        API -->> Web : TicketOut (status = done)
+        Web -->> Operator : Статус оновлено
+    end

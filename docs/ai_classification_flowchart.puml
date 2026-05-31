@@ -1,0 +1,118 @@
+@startuml AI Classification Flowchart
+!theme plain
+skinparam defaultFontName Arial
+skinparam ArrowColor #444444
+skinparam ActivityBorderColor #5B67EA
+skinparam ActivityBackgroundColor #EEF0FF
+skinparam ActivityDiamondBackgroundColor #FFF8E1
+skinparam ActivityDiamondBorderColor #F59E0B
+skinparam ActivityStartColor #059669
+skinparam ActivityEndColor #DC2626
+skinparam NoteBackgroundColor #F0FDF4
+skinparam NoteBorderColor #059669
+
+title Алгоритм двоступеневої AI-класифікації звернення
+
+start
+
+:Користувач створює звернення\n(title, description, request_type);
+
+:Система зберігає тікет у БД\n(статус: новий, priority: medium);
+
+fork
+  :Повернути відповідь користувачу;
+fork again
+  :Запустити фоновий процес\n**_run_ai_analysis()**;
+end fork
+
+|Фоновий процес|
+
+' ══════════════════════════════════════════
+' СТУПІНЬ 1 — AI через Claude API
+' ══════════════════════════════════════════
+
+note right
+  **Ступінь 1**
+  Claude Haiku API
+end note
+
+if (ANTHROPIC_API_KEY\nзадано?) then (так)
+
+  :Сформувати повідомлення:\n""Тема: {title}""\n""Тип запиту: {request_type}""\n""Опис: {description}"";
+
+  :Надіслати запит до\n**Claude Haiku API**\n(model: claude-haiku-4-5-20251001)\nmax_tokens: 512;
+
+  if (Відповідь\nотримано?) then (так)
+
+    :Розпарсити JSON\nз відповіді;
+
+    if (JSON валідний?) then (так)
+
+      #D1FAE5:Отримати результат:\n• **category** — категорія\n• **priority** — пріоритет\n• **summary** — стислий опис\n• **recommendation** — рекомендація;
+
+      -> Зберегти результат;
+
+    else (ні / помилка парсингу)
+      -> Перейти до ступеня 2;
+    endif
+
+  else (виняток / таймаут)
+    -> Перейти до ступеня 2;
+  endif
+
+else (ні)
+  -> Перейти до ступеня 2;
+endif
+
+' ══════════════════════════════════════════
+' СТУПІНЬ 2 — Keyword Fallback
+' ══════════════════════════════════════════
+
+note right
+  **Ступінь 2**
+  Ключові слова (fallback)
+end note
+
+if (Перейти до ступеня 2?) then (так)
+
+  :Об'єднати title + description\nу нижній регістр;
+
+  if (Ключові слова\nоплати / підписки?) then (так)
+    #FEF9C3:category = "Оплата / підписка"\npriority = **high**;
+  elseif (Ключові слова\nавторизації / доступу?) then (так)
+    #FEF9C3:category = "Технічна проблема"\npriority = **high**;
+  elseif (Ключові слова\nпомилок / збоїв?) then (так)
+    #FEF9C3:category = "Технічна проблема"\npriority = **medium**;
+  elseif (Ключові слова\nскарги?) then (так)
+    #FEF9C3:category = "Скарга"\npriority = **medium**;
+  elseif (Ключові слова\nконсультації?) then (так)
+    #FEF9C3:category = "Консультація"\npriority = **low**;
+  else (збіг не знайдено)
+    #FFE4E6:category = "Інше"\npriority = **medium**\n(ручний розгляд);
+  endif
+
+endif
+
+' ══════════════════════════════════════════
+' Збереження результату
+' ══════════════════════════════════════════
+
+:Зберегти результат\nкласифікації до БД;
+
+note right
+  ai_category, ai_priority,
+  ai_summary, ai_recommendation,
+  ai_analyzed = True
+end note
+
+if (Поточний priority\nтікета = "medium"?) then (так)
+  :Оновити priority тікета\nзначенням ai_priority;
+else (ні)
+  :Залишити priority\nбез змін;
+endif
+
+:Тікет готовий до\nперегляду оператором\n(з AI-аналізом);
+
+stop
+
+@enduml

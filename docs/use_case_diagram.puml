@@ -1,0 +1,106 @@
+@startuml HelpDesk AI — Use Case Diagram
+!theme plain
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam ArrowColor #444444
+skinparam ActorBorderColor #444444
+skinparam UsecaseBorderColor #5B67EA
+skinparam UsecaseBackgroundColor #EEF0FF
+skinparam NoteBackgroundColor #FFFDE7
+skinparam NoteBorderColor #F0CC00
+
+left to right direction
+
+' ─── Actors ───────────────────────────────────────────────
+actor "Анонімний\nкористувач" as Anon
+actor "Користувач"            as User
+actor "Оператор"              as Operator
+actor "Адміністратор"         as Admin
+actor "AI-система\n(Claude)"  as AI   #LightGreen
+
+' Inheritance
+User    -up-|> Anon
+Operator -up-|> User
+Admin    -up-|> Operator
+
+' ─── System boundary ──────────────────────────────────────
+rectangle "HelpDesk AI" {
+
+  ' === Автентифікація ======================================
+  package "Автентифікація" {
+    usecase "Зареєструватися"          as UC_Register
+    usecase "Увійти в систему"         as UC_Login
+    usecase "Переглянути свій профіль" as UC_Me
+  }
+
+  ' === Звернення (користувач) ==============================
+  package "Робота зі зверненнями" {
+    usecase "Створити звернення"          as UC_Create
+    usecase "Прикріпити файл"             as UC_Attach
+    usecase "Переглянути деталі звернення" as UC_Detail
+    usecase "Переглянути мої звернення"   as UC_MyTickets
+    usecase "Додати відповідь"            as UC_Reply
+  }
+
+  ' === Оператор ============================================
+  package "Управління зверненнями (оператор)" {
+    usecase "Переглянути всі звернення"  as UC_ListAll
+    usecase "Фільтрувати / шукати"       as UC_Filter
+    usecase "Призначити оператора"       as UC_Assign
+    usecase "Змінити статус звернення"   as UC_Status
+  }
+
+  ' === Дашборд =============================================
+  package "Аналітика та дашборд" {
+    usecase "Переглянути дашборд"         as UC_Dashboard
+    usecase "Переглянути завантаженість\nоператорів" as UC_Operators
+  }
+
+  ' === AI ==================================================
+  package "AI-аналіз" {
+    usecase "Автоматично аналізувати\nзвернення"      as UC_AI_Analyze
+    usecase "Визначити категорію\nта пріоритет"       as UC_AI_Classify
+    usecase "Сформувати рекомендацію\nоператору"      as UC_AI_Recommend
+  }
+}
+
+' ─── Anon connections ─────────────────────────────────────
+Anon --> UC_Create
+Anon --> UC_Attach
+Anon --> UC_Detail
+
+' ─── User connections ─────────────────────────────────────
+User --> UC_Register
+User --> UC_Login
+User --> UC_Me
+User --> UC_MyTickets
+User --> UC_Reply
+
+' ─── Operator connections ─────────────────────────────────
+Operator --> UC_ListAll
+Operator --> UC_Filter
+Operator --> UC_Assign
+Operator --> UC_Status
+Operator --> UC_Dashboard
+Operator --> UC_Operators
+
+' ─── Admin connections ────────────────────────────────────
+note right of Admin
+  Адміністратор має всі права
+  оператора + системні права
+  (керування обліковими записами)
+end note
+
+' ─── AI connections ───────────────────────────────────────
+AI --> UC_AI_Analyze
+AI --> UC_AI_Classify
+AI --> UC_AI_Recommend
+
+' ─── Include / extend relationships ───────────────────────
+UC_Create       ..> UC_AI_Analyze   : <<triggers>>
+UC_Filter       ..> UC_ListAll      : <<extends>>
+UC_AI_Analyze   ..> UC_AI_Classify  : <<include>>
+UC_AI_Analyze   ..> UC_AI_Recommend : <<include>>
+UC_Attach       ..> UC_Create       : <<extends>>
+
+@enduml
